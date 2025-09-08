@@ -1,0 +1,84 @@
+library(Seurat)
+library(SingleCellExperiment)
+library(Matrix)
+library(scales)
+library(cowplot)
+library(RCurl)
+library(dplyr)
+library(strings)
+library(patchwork)
+library(ggplot2)
+library(AnnotationHub)
+
+#load rds seurat objects
+
+setwd('/gpfs/scratch/finer03/seurat')
+data = readRDS("./ret_ednrb_bulk_paper/annopaperseurat.rds")
+
+#sample 1
+P01 <- Read10X("/gpfs/data/...")
+
+seurat_obj <- CreateSeuratObject(counts = wt, min.cells = 3, min.features = 200)
+
+#merge objects
+samples_combined <- merge(seurat_obj, y = seurat_obj2, add.cell.ids = c("male", "female"), project = "project", merge.data=TRUE)
+
+
+#modify metadata for qc
+metadata <- samples_combined@meta.data
+
+# Compute percent mito ratio
+#note “mt” could also be “MT”
+metadata$mitoRatio <- as.numeric(unlist(PercentageFeatureSet(object = samples_combined, pattern = '^mt-')))
+metadata$mitoRatio <- metadata[,4]/100
+
+# Add number of genes per UMI for each cell to metadata
+metadata$log10GenesPerUMI <- log10(samples_combined$nFeature_RNA) / log10(samples_combined$nCount_RNA)
+
+#You should see each cell ID has a ctrl_ or stim_ prefix as we had specified when we merged the Seurat objects. These prefixes should match the sample listed in orig.ident. Let’s begin by adding a column with our cell IDs and changing the current column names to be more intuitive:
+# Add cell IDs to metadata
+metadata$cells <- rownames(metadata)
+
+# Rename columns
+metadata <- metadata %>%dplyr::rename(nUMI = nCount_RNA, nGene = nFeature_RNA)
+
+# Add metadata back to Seurat object
+samples_combined@meta.data <- metadata
+
+# Create .RData object to load at any time, saving in the path below
+save(samples_combined, file="~/data/seurat.RData")
+
+#QC ASSESSMENT
+
+# Visualize the number of cell counts per sample
+metadata %>% ggplot(aes(x=sample, fill=sample)) + geom_bar() + theme_classic() + theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1)) + theme(plot.title = element_text(hjust=0.5, face="bold")) + ggtitle("NCells")
+
+#The UMI counts per cell should generally be above 500, that is the low end of what we expect. If UMI counts are between 500-1000 counts, it is usable but the cells probably should have been sequenced more deeply.
+# Visualize the number UMIs/transcripts per cell
+metadata %>% ggplot(aes(color=sample, x=nUMI, fill= sample)) + geom_density(alpha = 0.2) + scale_x_log10() + theme_classic() + ylab("Cell density") + geom_vline(xintercept = 500)
+
+# Visualize the distribution of genes detected per cell via histogram
+plot<-metadata %>% ggplot(aes(color=sample, x=nGene, fill= sample)) + geom_density(alpha = 0.2) + theme_classic() + scale_x_log10() + geom_vline(xintercept = 300)
+
+# Visualize the distribution of genes detected per cell via boxplot
+metadata %>% ggplot(aes(x=sample, y=log10(nGene), fill=sample)) + geom_boxplot() + theme_classic() +theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1)) +theme(plot.title = element_text(hjust=0.5, face="bold")) + ggtitle("NCells vs NGenes")
+
+# Visualize the correlation between genes detected and number of UMIs and determine whether strong presence of cells with low numbers of genes/UMIs
+metadata %>% ggplot(aes(x=nUMI, y=nGene, color=mitoRatio)) + geom_point() + scale_colour_gradient(low = "gray90", high = "black") + stat_smooth(method=lm) + scale_x_log10() + scale_y_log10() + theme_classic() + geom_vline(xintercept = 500) + geom_hline(yintercept = 250) + facet_wrap(~sample)
+
+# Visualize the distribution of mitochondrial gene expression detected per cell
+metadata %>% ggplot(aes(x=mitoRatio, color=sample, fill=sample)) + geom_density(alpha = 0.2) + scale_x_log10() + theme_classic() + geom_vline(xintercept = 0.2)
+
+
+#We can see the samples where we sequenced each cell less have a higher overall complexity, that is because we have not started saturating the sequencing for any given gene for these samples. Outlier cells in these samples might be cells that have a less complex RNA species than other cells. Sometimes we can detect contamination with low complexity cell types like red blood cells via this metric. Generally, we expect the novelty score to be above 0.80.
+# Visualize the overall complexity of the gene expression by visualizing the genes detected per UMI
+metadata %>% ggplot(aes(x=log10GenesPerUMI, color = sample, fill=sample)) + geom_density(alpha = 0.2) + theme_classic() + geom_vline(xintercept = 0.8)+ylab("Cell Density")
+
+#Filtering criteria from 10x recommendations but should select based on specific experiment
+filtered_seurat <- subset(x = samples_combined,  subset= (nUMI >= 500) & (nGene >= 250) & (log10GenesPerUMI > 0.80) &  (mitoRatio < 0.20))
+
+# Create .RData object to load at any time
+saveRDS(filtered_seurat, file="~/data/seurat_filtered.rds")
+
+#cleanup workspace
+rm(list=setdiff(ls(), "filtered_seurat")) 
