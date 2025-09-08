@@ -1,0 +1,113 @@
+#renaming cells
+names(new.ids) <- levels(data)
+data <- RenameIdents(data, new.ids)
+
+#renaming with vector stored in metadata
+original_ids <- data@meta.data$integrated_snn_res.0.3
+Idents(data) <- original_ids
+
+#plot to check cell names
+DimPlot(data, label = T, label.size = 3, reduction = "umap")+ NoLegend()
+
+#order dotplot
+levels(data) <- c("Dif. Matrix Fibroblasts","Dif. Matrix Fibroblasts 2","Myofibroblast Progenitors","eMyofibroblast Prog.","Myofibroblasts","Smooth Muscle","Epithelial", "Undifferentiated Stem Cells", "Mesenchymal Stem Cells", "Glia","Erythroblasts", "Neuronal","ENS Progenitors", "Immune", "Mesothelial", "Endothelial")
+
+#subset based on cell type
+sub_wt<- subset(x = data, subset = genotype == "wt")
+sub<- subset(x = data, idents = c("9","14","15"))
+
+
+###module score###
+#module enrichment score
+#load data
+e145<-read.csv("E14.5_genelist.csv")
+P0<-read.csv("P0_genelist.csv")
+
+#create lists of genes
+#clean out empty columns
+cleaned_string <- P0[P0$E14.5_Multiplicative_Down!= "", ]
+group1_genes_list = list(cleaned_string$E14.5_Multiplicative_Down)
+
+#load scRNAseq data
+data<-readRDS("./annopaperseurat.rds")
+DefaultAssay(data)<-"SCT"
+
+data <- AddModuleScore(object = data, features = group1_genes_list, name = "per_cell_module_score")
+
+#module score for hscr genes
+data <- AddModuleScore(object = data, features = c("Ret","Gdnf","Gfra1","Nrtn","Sox10","Ednrb","Edn3","Ece1","Zeb2","Phox2b","Kif1bp","Tcf4","L1cam","Elp1","Sema3c","Sema3d","Nrg1","Acss2","Adamts17","Eno3","Prxl2a","Sh3pxd2a","Slc27a4","Ubr4"), name = "per_cell_module_score")
+
+
+#scCustomize install.packages("scCustomize")
+library(scCustomize)
+VlnPlot_scCustom(seurat_object = data, features = 'per_cell_module_score1', plot_boxplot = TRUE)+ylim(-.25,1) & NoLegend()
+
+Stacked_VlnPlot(seurat_object = sub_P0, features = c('per_cell_module_score1','per_cell_module_score21','per_cell_module_score31','per_cell_module_score41','per_cell_module_score51','per_cell_module_score61'), x_lab_rotate = TRUE)
+
+#umap plot
+FeaturePlot(object = data, features = "per_cell_module_score1", label = TRUE, repel = TRUE) + scale_colour_gradientn(colours = rev(brewer.pal(n = 11, name = 'RdBu')))
+ggsave("./test.pdf",t)
+
+
+#density plot using scCustomize
+Plot_Density_Joint_Only(seurat_object = sub_wt, features = c("Pdgfra","Ret"))
+Plot_Density_Custom(seurat_object = data, features = "Fabp7")
+
+###propeller proportion plot###
+
+BiocManager::install(c("CellBench", "BiocStyle", "scater"))
+remotes::install_github("phipsonlab/speckle", build_vignettes = TRUE, dependencies = "Suggest")
+library(devtools)
+devtools::install_github("phipsonlab/speckle")
+library(speckle)
+library(limma)
+library(ggplot2)
+
+# Run propeller testing for cell type proportion differences between the two groups
+#data wrangle, function to split out sample name
+extract_sample <- function(text) {split_text <- strsplit(text, "_") 
+return(split_text[[1]][[1]]) }
+data$sample <- sapply(data$cells, extract_sample)
+
+#function to split out genotype from sample
+extract_genotype <- function(text) {
+  split_text <- strsplit(text, "(?<=[A-Za-z])(?=[0-9])|(?<=[0-9])(?=[A-Za-z])", perl = TRUE) 
+  return(split_text[[1]][[1]]) }
+data$genotype<- sapply(data$sample, extract_genotype)
+
+data[["idents"]] <- Idents(object = data)
+
+#examples of tables of proportions
+P<-propeller(clusters = seurat_labelled@active.ident, sample = seurat_labelled@meta.data$sample, group = seurat_labelled@meta.data$time)
+P<-propeller(clusters = data2@active.ident, sample = data2@meta.data$sample, group = data2@meta.data$genotype)
+
+# Plot cell type proportions by individual sample 
+plotCellTypeProps(clusters=seurat_labelled@active.ident, sample=seurat_labelled@meta.data$sample)
+plotCellTypeProps(clusters=data@meta.data$idents, sample= data@meta.data$genotype)
+
+#manual proportions plot with value overlay, note first have to run plotCelltypeProps and save as variable “P”
+ggplot(p$data, aes(x = Samples, y = Proportions, fill = Clusters)) +geom_bar(stat = "identity", position = "fill") +  geom_text(aes(label = round(Proportions, 3)),position = position_stack(vjust=.5))  + labs(x = "Samples", y = "Proportion")
+
+
+###to subset and highlight specific cell IDs###
+subset_vector <- metadata$cells[metadata$idents == "Early Dif. Neurons"]
+
+#from table
+vector<-read.table("~/Desktop/Early Dif. Neurons.txt",header = TRUE)
+subset_vector<-vector$ID
+DimPlot(data,cells.highlight=subset_vector)
+
+
+###pseudobulk boxplot###
+library(SCpubr)
+pseudo_bulk=AggregateExpression(data,assays="RNA", return.seurat=T, group.by=c("cells","genotype"))
+Idents(pseudo_bulk) = "genotype"
+pseudo_bulk@active.ident <- factor(pseudo_bulk@active.ident,levels=c("wt","piebald","cfpss"))
+DotPlot(pseudo_bulk,features=c("Sox2ot","Fabp7","Vamp2","Ret"))+coord_flip()
+
+#dotplot with color scale after making a combined ident column of genotype+cell_id
+DotPlot(data, cols = c("red"), dot.scale = 8, features =c("Sox2ot", "Fabp7", "Vamp2", "Ret")) + coord_flip()  + theme(axis.text = element_text(size = 14))+scale_colour_gradient(low =c("white"), high =c("red")) +guides(color = guide_colorbar(title = 'Average Expression'))
+
+
+
+
