@@ -1,0 +1,29 @@
+#begin SCtransform normalization
+data <- SCTransform(object = filtered_seurat)
+data <- RunPCA(object = data)
+data <- FindNeighbors(object = data, dims = 1:20)
+data<- FindClusters(object = data, resolution=.3)
+data <- RunUMAP(object = data, dims = 1:20)
+saveRDS(data,"/gpfs/data/chaklab/home/sct_13samples.rds")
+DimPlot(object = data, reduction = "umap")
+
+# 1:20, 1:5 for WT, ENS only
+
+#integration with sctransform using harmony
+data <- RunPCA(object = data)
+data <- IntegrateLayers(object = data, method = HarmonyIntegration, orig.reduction = "pca", new.reduction = 'harmony',assay = "SCT", verbose = TRUE)
+data <- FindNeighbors(data, reduction = "harmony", dims = 1:20)
+data<- FindClusters(data, resolution = .5, cluster.name = "harmony_clusters")
+data <- RunUMAP(data, reduction = "harmony", dims = 1:20, reduction.name = "umap.harmony")
+saveRDS(data,"/gpfs/data/chaklab/home/integrated_13samples.rds")
+q()
+DimPlot(data,reduction = "umap.harmony",label = TRUE)
+
+#integration with cca, used in paper
+data = IntegrateLayers(object =data, method = "CCAIntegration", normalization.method = "SCT", verbose = T )
+data <- FindNeighbors(data, reduction = "integrated.dr", dims = 1:5)
+data <- FindClusters(data, resolution = 0.1)
+data<- RunUMAP(data, dims = 1:5, reduction = "integrated.dr")
+DimPlot(data, label = T, label.size = 3, reduction = "umap")+ NoLegend()
+
+#not sure if you have to use reduction = "integrated.dr" for integrate layers step as well as Dimplot
