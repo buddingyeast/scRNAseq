@@ -1,0 +1,228 @@
+
+#sample gene lists
+hscr_genes<-c("Ret","Gdnf","Gfra1","Nrtn","Sox10","Ednrb","Edn3","Ece1","Zeb2","Phox2b","Kif1bp","Tcf4","L1cam","Elp1","Sema3c","Sema3d","Nrg1","Acss2","Adamts17","Eno3","Prxl2a","Sh3pxd2a","Slc27a4","Ubr4")
+hscr_genes2<-c("Ret","Gdnf","Gfra1","Nrtn","Sox10","Ednrb","Edn3","Ece1","Zeb2","Phox2b","Kif1bp","Tcf4","L1cam","Elp1","Sema3c","Sema3d","Nrg1","Acss2","Adamts17","Eno3","Prxl2a","Sh3pxd2a","Slc27a4","Ubr4","Peg3","Foxp2","Ebf3","Bcl11a","Zfhx4","Zfp521","Tbx2","Foxp1","Bach1","Sall1","Bnc2","Snai1","Tbx3","Hoxb9","Nfat5","Gata2","Baz2b","Hoxa9")
+hscr_genes3<-c("Ret","Gdnf","Gfra1","Nrtn","Sox10","Ednrb","Edn3","Ece1","Zeb2","Phox2b","Kif1bp","Tcf4","L1cam","Elp1","Sema3c","Sema3d","Nrg1","Acss2","Adamts17","Eno3","Prxl2a","Sh3pxd2a","Slc27a4","Ubr4","Peg3","Foxp2","Ebf3","Bcl11a","Zfhx4","Zfp521","Tbx2","Foxp1","Bach1","Sall1","Bnc2","Snai1","Tbx3","Hoxb9","Nfat5","Gata2","Baz2b","Hoxa9","Tcf12","Klf5","Maz","Patz1","Tfap4","Klf4","Sp4","Sp1","Sp2","Klf7")
+
+
+#sort genes into cell type with the highest avg expression for that gene
+
+sortGenesByCellType <- function(seurat_object, gene_list) {
+  # Check if the genes exist in the Seurat object
+  present_genes <- gene_list[gene_list %in% rownames(seurat_object)]
+  if (length(present_genes) == 0) {
+    stop("None of the provided genes were found in the Seurat object.")
+  }
+  
+  # Calculate average expression for each gene in each cell type
+  avg_expression <- Seurat::AverageExpression(seurat_object, features = present_genes, assays = "SCT", slot = "data")
+  
+  # Initialize an empty list to store the sorted subsets
+  sorted_subsets <- list()
+  
+  # Iterate through each gene to find its cell type with the highest average expression
+  for (gene in present_genes) {
+    # Find the cell type with the maximum average expression for the current gene
+    max_cell_type <- names(which.max(avg_expression$SCT[gene, ]))
+    
+    # If the cell type isn't already a key in our list, create it
+    if (!max_cell_type %in% names(sorted_subsets)) {
+      sorted_subsets[[max_cell_type]] <- c()
+    }
+    
+    # Add the gene to the corresponding cell type subset
+    sorted_subsets[[max_cell_type]] <- c(sorted_subsets[[max_cell_type]], gene)
+  }
+  
+  return(sorted_subsets)
+}
+
+
+#sort genes into a single cell type that has the highest avg expression for all genes, note that this may crash R
+sortGenesByCombinedExpression <- function(seurat_object, gene_list, num_subsets=5) {
+  # 1. Validate inputs
+  present_genes <- gene_list[gene_list %in% rownames(seurat_object)]
+  if (length(present_genes) == 0) {
+    stop("None of the provided genes were found in the Seurat object.")
+  }
+  
+  # 2. Calculate average expression for all genes in all cell types
+  avg_expression <- Seurat::AverageExpression(seurat_object, features = present_genes, assays = "SCT", slot = "data")$SCT
+  cell_types <- colnames(avg_expression)
+  
+  # 3. Initialize an empty list to store the final subsets and an empty list for remaining genes
+  final_subsets <- list()
+  remaining_genes <- present_genes
+  
+  # 4. Iteratively find the best subset until we reach the max_subsets limit
+  while (length(remaining_genes) > 0 && length(final_subsets) < num_subsets) {
+    best_combo_score <- -1
+    best_combo_genes <- character()
+    best_combo_cell_type <- character()
+    
+    # 5. Loop through all possible combinations of remaining genes
+    #    (This can be computationally expensive for large gene lists)
+    for (combo_size in 1:length(remaining_genes)) {
+      gene_combinations <- t(combn(remaining_genes, combo_size))
+      
+      for (i in 1:nrow(gene_combinations)) {
+        current_combo_genes <- gene_combinations[i, ]
+        
+        # 6. Calculate the combined average expression for this gene combo in each cell type
+        combined_avg <- colSums(avg_expression[current_combo_genes, , drop = FALSE])
+        
+        # 7. Find the cell type with the highest combined average for this combo
+        max_cell_type <- names(which.max(combined_avg))
+        max_score <- combined_avg[max_cell_type]
+        
+        # 8. If this combo's score is the highest we've seen, save it
+        if (max_score > best_combo_score) {
+          best_combo_score <- max_score
+          best_combo_genes <- current_combo_genes
+          best_combo_cell_type <- max_cell_type
+        }
+      }
+    }
+    
+    # 9. Add the best-scoring combo to our final subsets
+    subset_name <- paste0("Subset ", length(final_subsets) + 1, " (Cell Type: ", best_combo_cell_type, ")")
+    final_subsets[[subset_name]] <- best_combo_genes
+    
+    # 10. Remove the genes from this best combo from the remaining genes list
+    remaining_genes <- setdiff(remaining_genes, best_combo_genes)
+  }
+  
+  return(final_subsets)
+}
+
+
+#sort genes into n ranked cell types in which genes are placed based on their highest 
+#mean expression and cells types are ranked on the highest mean expression for 
+#all genes provided in a list
+
+library(Matrix)
+
+SortGenesByTopCellTypes <- function(seurat_object, gene_list, num_subsets) {
+  # 1. Validate inputs
+  present_genes <- gene_list[gene_list %in% rownames(seurat_object)]
+  if (length(present_genes) == 0) {
+    stop("None of the provided genes were found in the Seurat object.")
+  }
+  
+  # 2. Calculate summed expression for all genes in all cell types
+  summed_expression_result <- Seurat::AggregateExpression(seurat_object, features = present_genes, assays = "RNA")
+  summed_expression_matrix <- summed_expression_result$RNA
+  
+  # Get the number of cells per cell type
+  cell_counts <- table(Seurat::Idents(seurat_object))
+  
+  # Ensure that both the matrix and the vector have the same names and order
+  common_cell_types <- intersect(colnames(summed_expression_matrix), names(cell_counts))
+  
+  if (length(common_cell_types) == 0) {
+    return(list())
+  }
+  
+  summed_expression_matrix <- summed_expression_matrix[, common_cell_types, drop = FALSE]
+  cell_counts <- cell_counts[common_cell_types]
+  
+  # Divide the sum by the number of cells to get the mean
+  mean_expression_matrix <- summed_expression_matrix %*% Diagonal(x = 1 / as.vector(cell_counts))
+  colnames(mean_expression_matrix) <- common_cell_types
+  
+  # 3. Calculate the total average expression for all genes in each cell type and rank them
+  total_avg_expression <- colSums(mean_expression_matrix)
+  
+  if (length(total_avg_expression) == 0) {
+    return(list())
+  }
+  
+  top_cell_types <- names(head(sort(total_avg_expression, decreasing = TRUE), num_subsets))
+  
+  # 4. Initialize the final subsets list with the top cell types
+  final_subsets <- setNames(vector("list", length(top_cell_types)), paste0("Subset (", top_cell_types, ")"))
+  
+  # 5. Assign each gene to the subset where its expression is highest among the top cell types
+  for (gene in present_genes) {
+    # Filter to get expression values only for the top cell types
+    gene_expression_vector <- as.vector(mean_expression_matrix[gene, top_cell_types])
+    names(gene_expression_vector) <- top_cell_types
+    
+    # Find the top cell type from the filtered vector
+    max_cell_type <- names(which.max(gene_expression_vector))
+    
+    # Assign the gene to the found subset
+    if (!is.na(max_cell_type) && max_cell_type != "") {
+      subset_name <- paste0("Subset (", max_cell_type, ")")
+      final_subsets[[subset_name]] <- c(final_subsets[[subset_name]], gene)
+    }
+  }
+  
+  return(final_subsets)
+}
+
+#to sort by median,similar to mean above
+SortGenesByTopCellTypes_Med <- function(seurat_object, gene_list, num_subsets = 5) {
+  # 1. Validate inputs and gene list against the correct assay
+  # Use the RNA assay's rownames for validation
+  present_genes <- gene_list[gene_list %in% rownames(seurat_object[["SCT"]])]
+  if (length(present_genes) == 0) {
+    stop("None of the provided genes were found in the 'SCT' assay.")
+  }
+  
+  # 2. Extract gene expression data
+  # Use the correct layer name: "counts"
+  gene_expression_data <- as.matrix(seurat_object[["SCT"]]$data[present_genes, , drop = FALSE])
+  
+  # 3. Get cell type information
+  # Ensure the metadata column "celltypes" exists
+  if (!"celltypes" %in% colnames(seurat_object@meta.data)) {
+    stop("The 'celltypes' column is missing from the Seurat object's metadata.")
+  }
+  cell_types_vector <- seurat_object@meta.data$celltypes
+  
+  # 4. Group by cell type and calculate the median for each gene
+  median_expression_list <- lapply(unique(cell_types), function(cell_type) {
+    # Get the cell IDs for the current cell type from the metadata row names
+    cells_in_type <- sub14@meta.data$celltypes
+    
+    # Check if any cells are found to avoid errors
+    if (length(cells_in_type) == 0) {
+      # Return a vector of NAs if no cells are present for this cell type
+      return(rep(NA, nrow(gene_expression_data)))
+    }
+    
+    # Now, subset your expression data using the correct cell IDs
+    median_values <- apply(gene_expression_data[, cells_in_type, drop = FALSE], 1, median)
+    
+    return(median_values)
+  })
+  
+  # 5. Combine the list into a matrix
+  median_expression_matrix <- do.call(cbind, median_expression_list)
+  colnames(median_expression_matrix) <- unique(cell_types_vector)
+  
+  # 6. Calculate the total median expression for each cell type and rank
+  total_median_expression <- colSums(median_expression_matrix, na.rm = TRUE)
+  top_cell_types <- names(head(sort(total_median_expression, decreasing = TRUE), num_subsets))
+  
+  # 7. Assign each gene to the subset where its expression is highest
+  final_subsets <- setNames(vector("list", length(top_cell_types)), paste0("Subset (", top_cell_types, ")"))
+  
+  for (gene in present_genes) {
+    gene_expression_vector <- median_expression_matrix[gene, , drop = FALSE]
+    gene_expression_vector <- gene_expression_vector[, colnames(gene_expression_vector) %in% top_cell_types]
+    
+    if (length(gene_expression_vector) > 0) {
+      max_cell_type <- names(which.max(gene_expression_vector))
+      if (!is.na(max_cell_type)) {
+        subset_name <- paste0("Subset (", max_cell_type, ")")
+        final_subsets[[subset_name]] <- c(final_subsets[[subset_name]], gene)
+      }
+    }
+  }
+  
+  # 8. Return the final subsets
+  return(final_subsets)
+}
+
