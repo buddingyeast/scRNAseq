@@ -172,3 +172,149 @@ cluster_centroids <- sapply(
     colMeans(z_expr[genes_in_cluster, , drop = FALSE],na.rm = TRUE)})
 
 colnames(cluster_centroids) <- paste0("C", cluster_ids)
+
+############################################################
+# TF → HSCR-program correlations
+############################################################
+
+tf_program_cor <- map_dfr(
+  candidate_TFs,
+  function(tf) {
+    
+    if (!tf %in% rownames(z_expr)) {
+      return(NULL)
+    }
+    
+    tf_profile <- z_expr[tf, ]
+    
+    correlations <- apply(
+      cluster_centroids,
+      2,
+      function(centroid) {
+        cor(
+          tf_profile,
+          centroid,
+          method = "pearson",
+          use = "pairwise.complete.obs")})
+    
+    tibble(
+      TF = tf,
+      C1 = correlations["C1"],
+      C2 = correlations["C2"],
+      C3 = correlations["C3"],
+      C4 = correlations["C4"])})
+
+############################################################
+# Determine best positive HSCR-program match
+############################################################
+
+tf_program_cor <- tf_program_cor %>%
+  rowwise() %>%
+  mutate(
+    best_r = max(c_across(C1:C4), na.rm = TRUE),
+    best_program = names(
+      which.max(
+        c(
+          C1 = C1,
+          C2 = C2,
+          C3 = C3,
+          C4 = C4)))) %>% ungroup() %>% arrange(desc(best_r))
+
+tf_program_cor
+
+############################################################
+# Extract RNA counts
+############################################################
+
+counts <- GetAssayData(
+  sub_adult,
+  assay = "RNA",
+  layer = "counts")
+
+meta <- sub_adult@meta.data
+
+############################################################
+# Calculate % expressing by cell × stage
+############################################################
+
+pct_expr_list <- lapply(
+  valid_groups,
+  function(group) {
+    cells <- rownames(meta)[
+      meta$cell_stage == group]
+    
+    tf_present <- intersect(
+      candidate_TFs,
+      rownames(counts))
+    
+    pct <- Matrix::rowMeans(
+      counts[
+        tf_present,
+        cells,
+        drop = FALSE
+      ] > 0) * 100
+    
+    tibble(
+      TF = names(pct),
+      cell_stage = group,
+      pct_expressing = as.numeric(pct))})
+
+tf_pct <- bind_rows(pct_expr_list)
+
+############################################################
+# Average expression long format
+############################################################
+
+tf_avg_long <- expression_matrix_scaled[
+  intersect(candidate_TFs, rownames(expression_matrix_scaled)),,drop = FALSE] %>%
+  as.data.frame() %>%
+  rownames_to_column("TF") %>%
+  pivot_longer(
+    -TF,
+    names_to = "cell_stage",
+    values_to = "avg_expression")
+
+tf_expression <- tf_avg_long %>% left_join(tf_pct, by = c("TF", "cell_stage"))
+
+############################################################
+# Identify states in which each HSCR program is relatively high
+############################################################
+
+active_states <- lapply(
+  colnames(cluster_centroids),
+  function(cl) {
+    rownames(cluster_centroids)[
+      cluster_centroids[, cl] > 0]})
+
+names(active_states) <- colnames(cluster_centroids)
+
+############################################################
+# Program-specific TF prevalence
+############################################################
+
+program_expression_stats <- map_dfr(
+  1:nrow(tf_program_cor),
+  function(i) {
+    tf <- tf_program_cor$TF[i]
+    program <- tf_program_cor$best_program[i]
+    
+    states <- active_states[[program]]
+    
+    dat <- tf_expression %>%
+      filter(
+        TF == tf,
+        cell_stage %in% states)
+    
+    tibble(
+      TF = tf,
+      best_program = program,
+      mean_pct_active_states =
+        mean(dat$pct_expressing, na.rm = TRUE),
+      mean_expression_active_states =
+        mean(dat$avg_expression, na.rm = TRUE))})
+
+############################################################
+# Final TF candidate table
+############################################################
+
+TF_candidates <- tf_program_cor %>% left_join(program_expression_stats,by = c("TF", "best_program")) %>% arrange(desc(best_r))
