@@ -15,15 +15,16 @@ sub_adult <- subset(sub_filtered,subset = celltype_timepoint %in% valid_groups)
 agg <- AggregateExpression(sub_adult,assays = "RNA",features = hscr_genes,group.by = "celltype_timepoint",return.seurat = TRUE,normalization.method = "LogNormalize",scale.factor = 10000)
 
 expression_matrix <- LayerData(agg,assay = "RNA",layer = "data")
-
 expression_matrix <- as.matrix(expression_matrix)
-
 expression_matrix_scaled <- t(scale(t(expression_matrix)))
 
 # Remove genes with zero variance
 expression_matrix_scaled <- expression_matrix_scaled[complete.cases(expression_matrix_scaled),]
+hscr_genes<-c("Ret","Gfra1","Sox10","Ednrb","Edn3","Zeb2","Phox2b","Tcf4","L1cam","Elp1","Sema3c","Sema3d","Nrg1","Acss2","Adamts17","Eno3","Prxl2a","Sh3pxd2a","Slc27a4","Ubr4","Phgdh","Nes","Rpf1","Eftud2","Yars2","Gigyf1","Rps6ka1","Supt16")
 
-x<-as.matrix(expression_matrix_scaled)
+expression_matrix2 <- as.matrix(expression_matrix)
+expression_matrix_scaled2 <- t(scale(t(expression_matrix2)))
+x<-as.matrix(expression_matrix_scaled2[hscr_genes,])
 
 ############################################################
 # 1. SILHOUETTE ANALYSIS
@@ -102,7 +103,7 @@ p_wss <- fviz_nbclust(x,FUNcluster = kmeans,method = "wss",k.max = k_max,nstart 
 p_wss
 
 ####capture group information for kmeans####
-km_hscr4 <- kmeans(x_hscr,centers = 4,nstart = 1000)
+km_hscr4 <- kmeans(x,centers = 4,nstart = 1000)
 hscr_clusters <- data.frame(gene = rownames(x),cluster = km_hscr4$cluster)
 hscr_clusters <- hscr_clusters[order(hscr_clusters$cluster, hscr_clusters$gene),]
 
@@ -130,7 +131,6 @@ library(ggplot2)
 # from the 4-cluster solution.
 ############################################################
 
-hscr_genes<-c("Ret","Gfra1","Sox10","Ednrb","Edn3","Zeb2","Phox2b","Tcf4","L1cam","Elp1","Sema3c","Sema3d","Nrg1","Acss2","Adamts17","Eno3","Prxl2a","Sh3pxd2a","Slc27a4","Ubr4","Phgdh","Nes","Rpf1","Eftud2","Yars2","Gigyf1","Rps6ka1","Supt16")
 analysis_genes<-c("Ret","Gfra1","Sox10","Ednrb","Edn3","Zeb2","Phox2b","Tcf4","L1cam","Elp1","Sema3c",
               "Sema3d","Nrg1","Acss2","Adamts17","Eno3","Prxl2a","Sh3pxd2a","Slc27a4","Ubr4","Phgdh",
               "Nes","Rpf1","Eftud2","Yars2","Gigyf1","Rps6ka1","Supt16","Stat5b","Stat1","Stat3","Stat6",
