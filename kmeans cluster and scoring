@@ -1,8 +1,18 @@
 library(cluster)
 library(factoextra)
 library(ggplot2)
+library(dplyr)
 
 sub_adult$celltype_timepoint <- paste(sub_adult$idents,sub_adult$timepoint,sep = "_")
+sub_filtered <- subset(sub_adult,subset = idents != "Erythrocytes")
+group_counts <- as.data.frame(table(sub_filtered$celltype_timepoint))
+sub_adult <- subset(sub_filtered,subset = celltype_timepoint %in% valid_groups)
+
+colnames(group_counts) <- c("celltype_timepoint","n_cells")
+
+# Keep groups with >= 20 cells
+valid_groups <- group_counts %>%filter(n_cells >= 20) %>%pull(celltype_timepoint)
+
 
 agg <- AggregateExpression(sub_adult,assays = "RNA",features = hscr_genes,group.by = "celltype_timepoint",return.seurat = TRUE,normalization.method = "LogNormalize",scale.factor = 10000)
 
