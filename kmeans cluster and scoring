@@ -110,7 +110,16 @@ hscr_clusters <- hscr_clusters[order(hscr_clusters$cluster, hscr_clusters$gene),
 
 ###check sil_width for large positive widths suggesting unique cluster###
 sil4 <- silhouette(km_hscr4$cluster,dist(x_hscr))
-
 sil4_df <- data.frame(gene = rownames(x_hscr)[as.numeric(rownames(sil4))],cluster = sil4[, "cluster"],silhouette_width = sil4[, "sil_width"])
-
 sil4_df <- sil4_df[order(sil4_df$cluster, -sil4_df$silhouette_width),]
+
+hscr_genes<-c("Ret","Gfra1","Sox10","Ednrb","Edn3","Zeb2","Phox2b","Tcf4","L1cam","Elp1","Sema3c","Sema3d","Nrg1","Acss2","Adamts17","Eno3","Prxl2a","Sh3pxd2a","Slc27a4","Ubr4","Phgdh","Nes","Rpf1","Eftud2","Yars2","Gigyf1","Rps6ka1","Supt16")
+hscr_genes2<-c("Ret","Gfra1","Sox10","Ednrb","Edn3","Zeb2","Phox2b","Tcf4","L1cam","Elp1","Sema3c",
+              "Sema3d","Nrg1","Acss2","Adamts17","Eno3","Prxl2a","Sh3pxd2a","Slc27a4","Ubr4","Phgdh",
+              "Nes","Rpf1","Eftud2","Yars2","Gigyf1","Rps6ka1","Supt16","Stat5b","Stat1","Stat3","Stat6",
+              "Tbx2","Tbx3","Meis2","Meis3","Pknox2","Tgif2","Glis2","Gli1","Maz","Plagl1","Snai1","Snai2",
+              "Plagl2","Vezf1","Zbtb26","Zfx","Zbtb7a","Zbtb7b","Osr2","Tcf12","Tcf3","Bnc2","Patz1","Ebf1","Ebf3",
+              "Hey1","Maf","Mafk","Mafg","Sp2","Sp4","Klf7","Klf9","Egr1","Klf13","Klf3","Klf4","Klf5","Klf10","Klf2","Klf6",
+              "Etv6","Erg","Gabpa","Ehf","Elf1","Elf3","Etv1","Hand2","Tcf21","Zfp335","Etv4","Jdp2","Fos","Fosl2","Atf3","Nfe2l1","Tcf7l1","Rbpj","Hand1","Tal1","Nfat5","Nfatc2")
+
+
