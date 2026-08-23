@@ -155,9 +155,20 @@ colnames(z_expr) <- colnames(expression_matrix_scaled)
 ############################################################
 # HSCR program centroids
 ############################################################
+hscr_cluster_df <- hscr_clusters %>%filter(gene %in% hscr_genes)
+cluster_ids <- sort(unique(hscr_cluster_df$cluster))
+cluster_centroids <- sapply(
+  cluster_ids,function(cl) {
+    genes_in_cluster <- hscr_cluster_df %>%
+      filter(cluster == cl) %>%pull(gene)
 
-cluster_centroids <- sapply(names(hscr_clusters),function(cl) {
-    genes <- intersect(hscr_clusters[[cl]],rownames(z_expr))
-    colMeans(z_expr[genes, , drop = FALSE],na.rm = TRUE)})
+    # Keep genes actually present in expression matrix
+    genes_in_cluster <- intersect(
+      genes_in_cluster,
+      rownames(z_expr))
 
+    message("Cluster ", cl,": ", length(genes_in_cluster)," genes used")
 
+    colMeans(z_expr[genes_in_cluster, , drop = FALSE],na.rm = TRUE)})
+
+colnames(cluster_centroids) <- paste0("C", cluster_ids)
