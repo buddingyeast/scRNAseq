@@ -318,3 +318,43 @@ program_expression_stats <- map_dfr(
 ############################################################
 
 TF_candidates <- tf_program_cor %>% left_join(program_expression_stats,by = c("TF", "best_program")) %>% arrange(desc(best_r))
+
+TF_candidates_all <- TF_candidates %>%
+  rowwise() %>%
+  mutate(  
+    strongest_abs_r = max(
+      abs(c_across(C1:C4)),
+      na.rm = TRUE),
+    
+    strongest_abs_program = names(
+      which.max(abs(c(
+            C1 = C1,
+            C2 = C2,
+            C3 = C3,
+            C4 = C4
+          ))))) %>%ungroup()
+
+#####heatmap to visualize data######
+###################################
+library(pheatmap)
+
+cor_matrix <- TF_candidates %>%
+  select(TF, C1:C4) %>%
+  column_to_rownames("TF") %>%
+  as.matrix()
+
+# Sort by strongest matching program
+ord <- TF_candidates %>%
+  arrange(best_program, desc(best_r)) %>%
+  pull(TF)
+
+cor_matrix <- cor_matrix[
+  intersect(ord, rownames(cor_matrix)),,
+  drop = FALSE]
+
+pheatmap(
+  cor_matrix,
+  cluster_rows = FALSE,
+  cluster_cols = FALSE,
+  breaks = seq(-1, 1, length.out = 101),
+  main = "TF similarity to HSCR snRNA expression programs")
