@@ -142,15 +142,15 @@ analysis_genes<-c("Ret","Gfra1","Sox10","Ednrb","Edn3","Zeb2","Phox2b","Tcf4","L
 # Z-score each gene across cell × stage states
 ############################################################
 
-z_expr <- t(apply(avg_expr,1,
+z_expr <- t(apply(expression_matrix_scaled,1,
     function(x) {
       if (sd(x, na.rm = TRUE) == 0) {
         rep(NA, length(x))
       } else {
         as.numeric(scale(x))}}))
 
-rownames(z_expr) <- rownames(avg_expr)
-colnames(z_expr) <- colnames(avg_expr)
+rownames(z_expr) <- rownames(expression_matrix_scaled)
+colnames(z_expr) <- colnames(expression_matrix_scaled)
 
 ############################################################
 # HSCR program centroids
