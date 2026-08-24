@@ -803,3 +803,81 @@ ggplot(
     color = "Pearson r",
     size = "% expressing",
     title = "Candidate TFs associated with HSCR expression programs")
+
+############################################################
+# Actual TF expression across cell/stage states 
+#not very useful
+############################################################
+
+# ---------------------------------------------------------
+# 1. Get the TFs actually displayed in Figure C
+# ---------------------------------------------------------
+
+TFs_for_figure_D <- levels(tf_program_plot$TF)
+
+
+# ---------------------------------------------------------
+# 2. Prepare TF expression data
+# ---------------------------------------------------------
+
+tf_expression_plot <- tf_expression %>%
+  filter(
+    TF %in% TFs_for_figure_D
+  ) %>%
+  mutate(
+    cell_stage = gsub("_", "-", cell_stage)
+  )
+
+
+# ---------------------------------------------------------
+# 3. Order TFs according to Figure C
+# ---------------------------------------------------------
+
+tf_expression_plot$TF <- factor(
+  tf_expression_plot$TF,
+  levels = TFs_for_figure_D
+)
+
+
+# ---------------------------------------------------------
+# 4. Plot
+# ---------------------------------------------------------
+
+ggplot(
+  tf_expression_plot,
+  aes(
+    x = cell_stage,
+    y = TF,
+    color = avg_expression,
+    size = pct_expressing
+  )
+) +
+  
+  geom_point(
+    alpha = 0.9
+  ) +
+  
+  scale_color_gradient2(
+    low = "blue",
+    mid = "white",
+    high = "red",
+    midpoint = 0
+  ) +
+  
+  scale_size(
+    range = c(1, 8)
+  ) +
+  
+  theme_classic() +
+  
+  labs(
+    x = "Cell / developmental state",
+    y = "Transcription factor",
+    color = "Average\nexpression",
+    size = "% expressing",
+    title = "Expression of candidate HSCR-associated TFs") +
+  
+  theme(
+    axis.text.x = element_text(
+      angle = 45,
+      hjust = 1))
