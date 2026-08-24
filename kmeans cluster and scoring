@@ -212,15 +212,13 @@ tf_program_cor <- map_dfr(
 
 tf_program_cor <- tf_program_cor %>%
   rowwise() %>%
-  mutate(
-    best_r = max(c_across(C1:C4), na.rm = TRUE),
-    best_program = names(
+  mutate(best_r = max(c_across(C1:C4), na.rm = TRUE),best_program = names(
       which.max(
-        c(
-          C1 = C1,
+        c(C1 = C1,
           C2 = C2,
           C3 = C3,
-          C4 = C4)))) %>% ungroup() %>% arrange(desc(best_r))
+          C4 = C4)))) %>% ungroup() %>% arrange(desc(best_r)) %>%
+  mutate(best_program = sub(".*\\.", "", best_program))
 
 tf_program_cor
 
