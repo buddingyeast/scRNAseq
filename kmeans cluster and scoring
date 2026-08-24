@@ -268,12 +268,11 @@ tf_avg_long <- expression_matrix_scaled[
   intersect(candidate_TFs, rownames(expression_matrix_scaled)),,drop = FALSE] %>%
   as.data.frame() %>%
   rownames_to_column("TF") %>%
-  pivot_longer(
-    -TF,
-    names_to = "cell_stage",
-    values_to = "avg_expression")
+  pivot_longer(-TF, names_to = "cell_stage", values_to = "avg_expression")
 
-tf_expression <- tf_avg_long %>% left_join(tf_pct, by = c("TF", "cell_stage"))
+tf_expression <- tf_avg_long %>%
+  mutate(cell_stage = gsub("-", "_", cell_stage)) %>%
+  left_join(tf_pct %>% mutate(cell_stage = gsub("-", "_", cell_stage)),by = c("TF", "cell_stage"))
 
 ############################################################
 # Identify states in which each HSCR program is relatively high
