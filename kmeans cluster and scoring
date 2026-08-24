@@ -329,8 +329,9 @@ TF_candidates_all <- TF_candidates %>%
           ))))) %>%ungroup()
 
 TF_candidates_all<-TF_candidates_all %>% mutate(strongest_abs_program = sub(".*\\.", "", strongest_abs_program))
-#####heatmap to visualize data######
+#####heatmaps to visualize data######
 ###################################
+#TFscores#
 library(pheatmap)
 
 cor_matrix <- TF_candidates %>%
@@ -353,3 +354,452 @@ pheatmap(
   cluster_cols = FALSE,
   breaks = seq(-1, 1, length.out = 101),
   main = "TF similarity to HSCR snRNA expression programs")
+
+
+### 28 HSCR genes and their cluster assignments###
+hscr_heatmap_df <- expression_matrix_scaled2 %>%
+  as.data.frame() %>%
+  rownames_to_column("gene") %>%
+  filter(gene %in% hscr_genes) %>%
+  pivot_longer(
+    cols = -gene,
+    names_to = "cell_stage",
+    values_to = "expression") %>%
+  left_join(
+    hscr_clusters,
+    by = "gene")
+
+# Order genes by cluster and then alphabetically
+gene_order <- hscr_clusters %>%
+  filter(gene %in% hscr_genes) %>%
+  arrange(cluster, gene) %>%
+  pull(gene)
+
+hscr_heatmap_df$gene <- factor(
+  hscr_heatmap_df$gene,
+  levels = rev(gene_order))
+
+# Order states as they occur in the matrix
+state_order <- colnames(expression_matrix_scaled2)
+
+hscr_heatmap_df$cell_stage <- factor(
+  hscr_heatmap_df$cell_stage,
+  levels = state_order)
+
+ggplot(hscr_heatmap_df,
+  aes(x = cell_stage,y = gene,
+    fill = expression)) +
+  geom_tile() +
+  scale_fill_gradient2(
+    low = "blue",
+    mid = "white",
+    high = "red",
+    midpoint = 0) +
+  facet_grid(
+    cluster ~ .,
+    scales = "free_y",
+    space = "free_y") +
+  theme_classic() +
+  theme(
+    axis.text.x = element_text(
+      angle = 45,
+      hjust = 1),
+    axis.title = element_blank(),
+    strip.background = element_blank(),
+    strip.text.y = element_text(
+      face = "bold")) +
+  labs(fill = "Gene\nZ-score",title = "HSCR genes form four expression programs")
+
+############################################################
+# Plot 28 hscr gene profiles as line plot
+############################################################
+centroid_df <- data.frame(
+  cell_stage = rownames(cluster_centroids),
+  cluster_centroids,
+  check.names = FALSE)
+
+# Convert ONLY C1:C4 into long format
+centroid_long <- centroid_df %>%
+  pivot_longer(
+    cols = all_of(colnames(cluster_centroids)),
+    names_to = "Program",
+    values_to = "Centroid")
+
+# Preserve original cell/stage ordering
+centroid_long$cell_stage <- factor(
+  centroid_long$cell_stage,
+  levels = rownames(cluster_centroids))
+
+ggplot(centroid_long,aes(x = cell_stage,y = Centroid,group = Program,color = Program)) +
+  geom_line(linewidth = 1.2) +
+  geom_point(size = 3) +
+  geom_hline(
+    yintercept = 0,
+    linetype = "dashed") +
+  theme_classic() +
+  labs(x = "Cell / developmental state",y = "Mean HSCR gene Z-score",color = "HSCR program",
+    title = "Expression profiles of the four HSCR programs") +
+  theme(axis.text.x = element_text(angle = 45,hjust = 1))
+
+# =========================================================
+# FIGURE C
+# Candidate TFs associated with HSCR expression programs
+# =========================================================
+
+
+# ---------------------------------------------------------
+# 1. TF-program correlations
+# ---------------------------------------------------------
+
+tf_cor_long <- TF_candidates_all %>%
+  select(TF, C1:C4) %>%
+  pivot_longer(
+    cols = C1:C4,
+    names_to = "Program",
+    values_to = "Pearson_r"
+  )
+
+
+# ---------------------------------------------------------
+# 2. TF expression prevalence
+#
+# Standardize cell-stage names so they match centroid_df
+# ---------------------------------------------------------
+
+tf_prevalence <- tf_expression %>%
+  select(
+    TF,
+    cell_stage,
+    pct_expressing
+  ) %>%
+  mutate(
+    cell_stage = gsub("_", "-", cell_stage)
+  )
+
+
+# ---------------------------------------------------------
+# 3. Identify cell states belonging to each program
+#
+# A state is considered active when its centroid > 0
+# ---------------------------------------------------------
+
+program_states <- centroid_df %>%
+  pivot_longer(
+    cols = C1:C4,
+    names_to = "Program",
+    values_to = "Centroid"
+  ) %>%
+  filter(
+    Centroid > 0
+  ) %>%
+  select(
+    Program,
+    cell_stage
+  )
+
+
+# ---------------------------------------------------------
+# 4. Calculate mean TF prevalence within the
+#    active states for each program
+# ---------------------------------------------------------
+
+tf_program_prevalence <- tf_cor_long %>%
+  left_join(
+    program_states,
+    by = "Program"
+  ) %>%
+  left_join(
+    tf_prevalence,
+    by = c("TF", "cell_stage")
+  ) %>%
+  group_by(
+    TF,
+    Program,
+    Pearson_r
+  ) %>%
+  summarise(
+    mean_pct_expressing = mean(
+      pct_expressing,
+      na.rm = TRUE
+    ),
+    .groups = "drop"
+  )
+
+
+# ---------------------------------------------------------
+# 5. Check for missing prevalence values
+# ---------------------------------------------------------
+
+cat(
+  "Missing prevalence values:",
+  sum(is.na(tf_program_prevalence$mean_pct_expressing)),
+  "\n"
+)
+
+
+# ---------------------------------------------------------
+# 6. Select the 5 strongest POSITIVE TFs
+#    for each program
+# ---------------------------------------------------------
+
+top_positive_TFs <- tf_cor_long %>%
+  filter(
+    Pearson_r > 0
+  ) %>%
+  group_by(
+    Program
+  ) %>%
+  slice_max(
+    order_by = Pearson_r,
+    n = 5,
+    with_ties = FALSE
+  ) %>%
+  ungroup()
+
+
+# ---------------------------------------------------------
+# 7. Select the 5 strongest NEGATIVE TFs
+#    for each program
+# ---------------------------------------------------------
+
+top_negative_TFs <- tf_cor_long %>%
+  filter(
+    Pearson_r < 0
+  ) %>%
+  group_by(
+    Program
+  ) %>%
+  slice_min(
+    order_by = Pearson_r,
+    n = 5,
+    with_ties = FALSE
+  ) %>%
+  ungroup()
+
+
+# ---------------------------------------------------------
+# 8. Combine positive and negative TFs
+# ---------------------------------------------------------
+
+top_TFs <- bind_rows(
+  top_positive_TFs,
+  top_negative_TFs
+) %>%
+  distinct(
+    TF,
+    Program,
+    .keep_all = TRUE
+  )
+
+
+# ---------------------------------------------------------
+# 9. Keep only selected TFs for plotting
+# ---------------------------------------------------------
+
+tf_program_plot <- tf_program_prevalence %>%
+  semi_join(
+    top_TFs,
+    by = c("TF", "Program")
+  ) %>%
+  filter(
+    !is.na(Pearson_r),
+    !is.na(mean_pct_expressing))
+
+# ---------------------------------------------------------
+# 10. Cluster TFs based on their correlation pattern
+#    across the four programs
+# ---------------------------------------------------------
+
+C1_positive <- tf_cor_long %>%
+  filter(
+    Program == "C1",
+    Pearson_r > 0
+  ) %>%
+  slice_max(
+    Pearson_r,
+    n = 5,
+    with_ties = FALSE
+  )
+
+
+# ---------------------------------------------------------
+# C1: 5 strongest negative
+# ---------------------------------------------------------
+
+C1_negative <- tf_cor_long %>%
+  filter(
+    Program == "C1",
+    Pearson_r < 0
+  ) %>%
+  slice_min(
+    Pearson_r,
+    n = 5,
+    with_ties = FALSE
+  )
+
+
+# ---------------------------------------------------------
+# C2: 5 strongest positive
+# ---------------------------------------------------------
+
+C2_positive <- tf_cor_long %>%
+  filter(
+    Program == "C2",
+    Pearson_r > 0
+  ) %>%
+  slice_max(
+    Pearson_r,
+    n = 5,
+    with_ties = FALSE
+  )
+
+
+# ---------------------------------------------------------
+# C2: 5 strongest negative
+# ---------------------------------------------------------
+
+C2_negative <- tf_cor_long %>%
+  filter(
+    Program == "C2",
+    Pearson_r < 0
+  ) %>%
+  slice_min(
+    Pearson_r,
+    n = 5,
+    with_ties = FALSE
+  )
+
+
+# ---------------------------------------------------------
+# C3: 5 strongest positive
+# ---------------------------------------------------------
+
+C3_positive <- tf_cor_long %>%
+  filter(
+    Program == "C3",
+    Pearson_r > 0
+  ) %>%
+  slice_max(
+    Pearson_r,
+    n = 5,
+    with_ties = FALSE
+  )
+
+
+# ---------------------------------------------------------
+# C3: 5 strongest negative
+# ---------------------------------------------------------
+
+C3_negative <- tf_cor_long %>%
+  filter(
+    Program == "C3",
+    Pearson_r < 0
+  ) %>%
+  slice_min(
+    Pearson_r,
+    n = 5,
+    with_ties = FALSE
+  )
+
+
+# ---------------------------------------------------------
+# C4: 5 strongest positive
+# ---------------------------------------------------------
+
+C4_positive <- tf_cor_long %>%
+  filter(
+    Program == "C4",
+    Pearson_r > 0
+  ) %>%
+  slice_max(
+    Pearson_r,
+    n = 5,
+    with_ties = FALSE
+  )
+
+
+# ---------------------------------------------------------
+# C4: 5 strongest negative
+# ---------------------------------------------------------
+
+C4_negative <- tf_cor_long %>%
+  filter(
+    Program == "C4",
+    Pearson_r < 0
+  ) %>%
+  slice_min(
+    Pearson_r,
+    n = 5,
+    with_ties = FALSE)
+
+
+# ---------------------------------------------------------
+# Combine in desired plotting order
+# ---------------------------------------------------------
+
+top_TFs_ordered <- bind_rows(
+  C1_positive,
+  C1_negative,
+  C2_positive,
+  C2_negative,
+  C3_positive,
+  C3_negative,
+  C4_positive,
+  C4_negative) %>%
+  distinct(TF, .keep_all = TRUE)
+
+
+# ---------------------------------------------------------
+# Keep selected TFs in the prevalence data
+# ---------------------------------------------------------
+
+tf_program_plot <- tf_program_prevalence %>%
+  semi_join(
+    top_TFs_ordered,
+    by = c("TF", "Program")) %>%
+  filter(
+    !is.na(Pearson_r),
+    !is.na(mean_pct_expressing))
+
+# ---------------------------------------------------------
+# Create y-axis order
+# ---------------------------------------------------------
+
+tf_order <- top_TFs_ordered$TF
+tf_program_plot$TF <- factor(
+  tf_program_plot$TF,
+  levels = rev(tf_order))
+
+# ---------------------------------------------------------
+# 11. Make Figure C
+# ---------------------------------------------------------
+
+ggplot(
+  tf_program_plot,
+  aes(
+    x = Program,
+    y = TF,
+    color = Pearson_r,
+    size = mean_pct_expressing)) +
+  
+  geom_point(
+    alpha = 0.9) +
+  
+  scale_color_gradient2(
+    low = "blue",
+    mid = "white",
+    high = "red",
+    midpoint = 0,
+    limits = c(-1, 1)) +
+  
+  scale_size(
+    range = c(2, 9)) +
+  
+  theme_classic() +
+  
+  labs(
+    x = "HSCR expression program",
+    y = "Transcription factor",
+    color = "Pearson r",
+    size = "% expressing",
+    title = "Candidate TFs associated with HSCR expression programs")
