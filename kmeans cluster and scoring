@@ -139,6 +139,8 @@ analysis_genes<-c("Ret","Gfra1","Sox10","Ednrb","Edn3","Zeb2","Phox2b","Tcf4","L
               "Hey1","Maf","Mafk","Mafg","Sp2","Sp4","Klf7","Klf9","Egr1","Klf13","Klf3","Klf4","Klf5","Klf10","Klf2","Klf6",
               "Etv6","Erg","Gabpa","Ehf","Elf1","Elf3","Etv1","Hand2","Tcf21","Zfp335","Etv4","Jdp2","Fos","Fosl2","Atf3","Nfe2l1","Tcf7l1","Rbpj","Hand1","Tal1","Nfat5","Nfatc2")
 
+candidate_TFs<-setdiff(analysis_genes,hscr_genes)
+
 # Z-score each gene across cell × stage states
 ############################################################
 
