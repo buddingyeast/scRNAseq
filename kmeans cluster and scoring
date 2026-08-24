@@ -294,7 +294,8 @@ program_expression_stats <- map_dfr(
     tf <- tf_program_cor$TF[i]
     program <- tf_program_cor$best_program[i]
     
-    states <- active_states[[program]]
+    # Get states and convert hyphens to underscores to match tf_expression
+    states <- gsub("-", "_", active_states[[program]])
     
     dat <- tf_expression %>%
       filter(
@@ -304,11 +305,8 @@ program_expression_stats <- map_dfr(
     tibble(
       TF = tf,
       best_program = program,
-      mean_pct_active_states =
-        mean(dat$pct_expressing, na.rm = TRUE),
-      mean_expression_active_states =
-        mean(dat$avg_expression, na.rm = TRUE))})
-
+      mean_pct_active_states = if(nrow(dat) > 0) mean(dat$pct_expressing, na.rm = TRUE) else NA_real_,
+      mean_expression_active_states = if(nrow(dat) > 0) mean(dat$avg_expression, na.rm = TRUE) else NA_real_)})
 ############################################################
 # Final TF candidate table
 ############################################################
