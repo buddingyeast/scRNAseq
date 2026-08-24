@@ -240,7 +240,7 @@ pct_expr_list <- lapply(
   valid_groups,
   function(group) {
     cells <- rownames(meta)[
-      meta$cell_stage == group]
+      meta$celltype_timepoint == group]
     
     tf_present <- intersect(
       candidate_TFs,
@@ -270,10 +270,10 @@ tf_avg_long <- expression_matrix_scaled[
   rownames_to_column("TF") %>%
   pivot_longer(
     -TF,
-    names_to = "cell_stage",
+    names_to = "celltype_timepoint",
     values_to = "avg_expression")
 
-tf_expression <- tf_avg_long %>% left_join(tf_pct, by = c("TF", "cell_stage"))
+tf_expression <- tf_avg_long %>% left_join(tf_pct, by = c("TF", "celltype_timepoint"))
 
 ############################################################
 # Identify states in which each HSCR program is relatively high
