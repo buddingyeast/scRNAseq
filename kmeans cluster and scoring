@@ -228,10 +228,7 @@ tf_program_cor
 # Extract RNA counts
 ############################################################
 
-counts <- GetAssayData(
-  sub_adult,
-  assay = "RNA",
-  layer = "counts")
+counts <- GetAssayData(sub_adult, assay = "SCT", layer = "counts")
 
 meta <- sub_adult@meta.data
 
