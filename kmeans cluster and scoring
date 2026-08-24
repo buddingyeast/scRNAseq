@@ -328,6 +328,7 @@ TF_candidates_all <- TF_candidates %>%
             C4 = C4
           ))))) %>%ungroup()
 
+TF_candidates_all<-TF_candidates_all %>% mutate(strongest_abs_program = sub(".*\\.", "", strongest_abs_program))
 #####heatmap to visualize data######
 ###################################
 library(pheatmap)
