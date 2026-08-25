@@ -121,7 +121,7 @@ hscr_clusters <- data.frame(gene = rownames(x),cluster = km_hscr4$cluster)
 hscr_clusters <- hscr_clusters[order(hscr_clusters$cluster, hscr_clusters$gene),]
 
 ###check sil_width for large positive widths suggesting unique cluster###
-sil4 <- silhouette(km_hscr4$cluster,dist(x_hscr))
+sil4 <- silhouette(km_hscr4$cluster,dist(x))
 sil4_df <- data.frame(gene = rownames(x_hscr)[as.numeric(rownames(sil4))],cluster = sil4[, "cluster"],silhouette_width = sil4[, "sil_width"])
 sil4_df <- sil4_df[order(sil4_df$cluster, -sil4_df$silhouette_width),]
 
@@ -137,120 +137,9 @@ library(purrr)
 library(tibble)
 library(ggplot2)
 
-############################################################
-# Define the four HSCR expression programs
-#
-# Replace the example genes below with your exact assignments
-# from the 4-cluster solution.
-############################################################
-
-candidate_TFs<-setdiff(analysis_genes,hscr_genes)
-
 # Z-score each gene across cell × stage states
 ############################################################
-
-z_expr <- t(apply(expression_matrix,1,
-    function(x) {
-      if (sd(x, na.rm = TRUE) == 0) {
-        rep(NA, length(x))
-      } else {
-        as.numeric(scale(x))}}))
-
-rownames(z_expr) <- rownames(expression_matrix)
-colnames(z_expr) <- colnames(expression_matrix)
-
-############################################################
-# HSCR program centroids
-############################################################
-hscr_cluster_df <- hscr_clusters %>%filter(gene %in% hscr_genes)
-cluster_ids <- sort(unique(hscr_cluster_df$cluster))
-cluster_centroids <- sapply(
-  cluster_ids,function(cl) {
-    genes_in_cluster <- hscr_cluster_df %>%
-      filter(cluster == cl) %>%pull(gene)
-
-    # Keep genes actually present in expression matrix
-    genes_in_cluster <- intersect(
-      genes_in_cluster,
-      rownames(z_expr))
-
-    message("Cluster ", cl,": ", length(genes_in_cluster)," genes used")
-
-    colMeans(z_expr[genes_in_cluster, , drop = FALSE],na.rm = TRUE)})
-
-colnames(cluster_centroids) <- paste0("C", cluster_ids)
-
-############################################################
-# TF → HSCR-program correlations
-############################################################
-
-tf_program_cor <- map_dfr(
-  candidate_TFs,
-  function(tf) {
-    
-    if (!tf %in% rownames(z_expr)) {
-      return(NULL)
-    }
-    
-    tf_profile <- z_expr[tf, ]
-    
-    correlations <- apply(
-      cluster_centroids,
-      2,
-      function(centroid) {
-        cor(
-          tf_profile,
-          centroid,
-          method = "pearson",
-          use = "pairwise.complete.obs")})
-    
-    tibble(
-      TF = tf,
-      C1 = correlations["C1"],
-      C2 = correlations["C2"],
-      C3 = correlations["C3"],
-      C4 = correlations["C4"])})
-
-############################################################
-# Determine best positive HSCR-program match
-############################################################
-
-tf_program_cor <- map_dfr(
-  candidate_TFs_filtered,
-  function(tf) {
-
-    tf_profile <- z_expr[tf, ]
-
-    correlations <- apply(
-      cluster_centroids,
-      2,
-      function(centroid) {
-        cor(
-          tf_profile,
-          centroid,
-          method = "pearson",
-          use = "pairwise.complete.obs"
-        )})
-
-    tibble(
-      TF = tf,
-      C1 = correlations["C1"],
-      C2 = correlations["C2"],
-      C3 = correlations["C3"],
-      C4 = correlations["C4"]
-
-tf_program_cor
-
-###keep below until veresion above is checked####
-tf_program_cor <- tf_program_cor %>%
-  rowwise() %>%
-  mutate(best_r = max(c_across(C1:C4), na.rm = TRUE),best_program = names(
-      which.max(
-        c(C1 = C1,
-          C2 = C2,
-          C3 = C3,
-          C4 = C4)))) %>% ungroup() %>% arrange(desc(best_r)) %>%
-  mutate(best_program = sub(".*\\.", "", best_program))
+z_expr <- t(scale(t(expression_matrix)))
 
 ############################################################
 # Extract RNA counts and filter low expressing TFs optional
@@ -296,9 +185,82 @@ expressed_TFs <- tf_detection %>%
   filter(max_pct_expressing >= 5) %>%
   pull(TF)
 
-candidate_TFs_filtered <- intersect(
-  expressed_TFs,
-  rownames(z_expr))
+candidate_TFs_filtered <- intersect(expressed_TFs,rownames(z_expr))
+
+############################################################
+# HSCR program centroids
+############################################################
+hscr_cluster_df <- hscr_clusters %>%filter(gene %in% hscr_genes)
+cluster_ids <- sort(unique(hscr_cluster_df$cluster))
+cluster_centroids <- sapply(
+  cluster_ids,function(cl) {
+    genes_in_cluster <- hscr_cluster_df %>%
+      filter(cluster == cl) %>%pull(gene)
+
+    # Keep genes actually present in expression matrix
+    genes_in_cluster <- intersect(
+      genes_in_cluster,
+      rownames(z_expr))
+
+    message("Cluster ", cl,": ", length(genes_in_cluster)," genes used")
+
+    colMeans(z_expr[genes_in_cluster, , drop = FALSE],na.rm = TRUE)})
+
+colnames(cluster_centroids) <- paste0("C", cluster_ids)
+
+############################################################
+# TF → HSCR-program correlations
+############################################################
+
+tf_program_cor <- map_dfr(
+  candidate_TFs_filtered,
+  function(tf) {
+    
+    if (!tf %in% rownames(z_expr)) {
+      return(NULL)}
+    
+    tf_profile <- z_expr[tf, ]
+    
+    correlations <- apply(
+      cluster_centroids,
+      2,
+      function(centroid) {
+        cor(
+          tf_profile,
+          centroid,
+          method = "pearson",
+          use = "pairwise.complete.obs")}
+    
+    tibble(
+      TF = tf,
+      C1 = correlations["C1"],
+      C2 = correlations["C2"],
+      C3 = correlations["C3"],
+      C4 = correlations["C4"])})
+
+############################################################
+# Determine best positive HSCR-program match
+############################################################
+
+tf_program_cor <- tf_program_cor %>%
+  rowwise() %>%
+  mutate(
+    best_r = max(
+      c_across(C1:C4),
+      na.rm = TRUE),
+    best_program = names(
+      which.max(
+        c(
+          C1 = C1,
+          C2 = C2,
+          C3 = C3,
+          C4 = C4)))) %>%
+  ungroup() %>%
+  arrange(desc(best_r)) %>%
+  mutate(
+    best_program = sub(".*\\.", "", best_program))
+
+tf_program_cor
 
 
 ############################################################
@@ -312,20 +274,16 @@ pct_expr_list <- lapply(
       meta$celltype_timepoint == group]
     
     tf_present <- intersect(
-      candidate_TFs,
+      candidate_TFs_filtered,
       rownames(counts))
     
     pct <- Matrix::rowMeans(
       counts[
         tf_present,
         cells,
-        drop = FALSE
-      ] > 0) * 100
+        drop = FALSE] > 0) * 100
     
-    tibble(
-      TF = names(pct),
-      cell_stage = group,
-      pct_expressing = as.numeric(pct))})
+    tibble(TF = names(pct),cell_stage = group,pct_expressing = as.numeric(pct))})
 
 tf_pct <- bind_rows(pct_expr_list)
 
@@ -334,7 +292,7 @@ tf_pct <- bind_rows(pct_expr_list)
 ############################################################
 
 tf_avg_long <- expression_matrix_scaled[
-  intersect(candidate_TFs, rownames(expression_matrix_scaled)),,drop = FALSE] %>%
+  intersect(candidate_TFs_filtered, rownames(expression_matrix_scaled)),,drop = FALSE] %>%
   as.data.frame() %>%
   rownames_to_column("TF") %>%
   pivot_longer(-TF, names_to = "cell_stage", values_to = "avg_expression")
@@ -349,9 +307,7 @@ tf_expression <- tf_avg_long %>%
 
 active_states <- lapply(
   colnames(cluster_centroids),
-  function(cl) {
-    rownames(cluster_centroids)[
-      cluster_centroids[, cl] > 0]})
+  function(cl) {rownames(cluster_centroids)[cluster_centroids[, cl] > 0]})
 
 names(active_states) <- colnames(cluster_centroids)
 
@@ -369,9 +325,7 @@ program_expression_stats <- map_dfr(
     states <- gsub("-", "_", active_states[[program]])
     
     dat <- tf_expression %>%
-      filter(
-        TF == tf,
-        cell_stage %in% states)
+      filter(TF == tf,cell_stage %in% states)
     
     tibble(
       TF = tf,
@@ -400,6 +354,7 @@ TF_candidates_all <- TF_candidates %>%
           ))))) %>%ungroup()
 
 TF_candidates_all<-TF_candidates_all %>% mutate(strongest_abs_program = sub(".*\\.", "", strongest_abs_program))
+
 #####heatmaps to visualize data######
 ###################################
 #TFscores#
@@ -428,7 +383,7 @@ pheatmap(
 
 
 ### 28 HSCR genes and their cluster assignments###
-hscr_heatmap_df <- expression_matrix_scaled2 %>%
+hscr_heatmap_df <- x %>%
   as.data.frame() %>%
   rownames_to_column("gene") %>%
   filter(gene %in% hscr_genes) %>%
@@ -451,7 +406,7 @@ hscr_heatmap_df$gene <- factor(
   levels = rev(gene_order))
 
 # Order states as they occur in the matrix
-state_order <- colnames(expression_matrix_scaled2)
+state_order <- colnames(x)
 
 hscr_heatmap_df$cell_stage <- factor(
   hscr_heatmap_df$cell_stage,
