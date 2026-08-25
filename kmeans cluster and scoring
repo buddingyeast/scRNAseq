@@ -65,7 +65,7 @@ sil_results <- data.frame(k = 2:k_max,silhouette = NA_real_)
 
 set.seed(123)
 
-for (k in 2:k_max) {
+for (k in 2:kmax) {
 
   km <- kmeans(x,centers = k,nstart = 100,iter.max = 100)
 
@@ -89,7 +89,7 @@ cat("\nBest k by silhouette =",best_k_sil,"\n")
 
 set.seed(123)
 
-gap <- clusGap(x,FUNcluster = kmeans,K.max = k_max,B = 500,nstart = 100)
+gap <- clusGap(x,FUNcluster = kmeans,K.max = kmax,B = 500,nstart = 100)
 
 # View numerical results
 print(gap)
@@ -109,7 +109,7 @@ cat("\nBest k by gap statistic =",best_k_gap,"\n")
 ############################################################
 # 5. WSS / ELBOW METHOD
 ############################################################
-p_wss <- fviz_nbclust(x,FUNcluster = kmeans,method = "wss",k.max = k_max,nstart = 100) +
+p_wss <- fviz_nbclust(x,FUNcluster = kmeans,method = "wss",k.max = kmax,nstart = 100) +
   labs(title = "Optimal k: Elbow Method",
     x = "Number of clusters (k)",
     y = "Total within-cluster sum of squares")
