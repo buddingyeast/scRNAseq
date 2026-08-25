@@ -12,19 +12,32 @@ colnames(group_counts) <- c("celltype_timepoint","n_cells")
 valid_groups <- group_counts %>%filter(n_cells >= 20) %>%pull(celltype_timepoint)
 sub_adult <- subset(sub_filtered,subset = celltype_timepoint %in% valid_groups)
 
-agg <- AggregateExpression(sub_adult,assays = "RNA",features = hscr_genes,group.by = "celltype_timepoint",return.seurat = TRUE,normalization.method = "LogNormalize",scale.factor = 10000)
+#28 hscr genes
+hscr_genes<-c("Ret","Gfra1","Sox10","Ednrb","Edn3","Zeb2","Phox2b","Tcf4","L1cam","Elp1","Sema3c","Sema3d","Nrg1","Acss2","Adamts17","Eno3","Prxl2a","Sh3pxd2a","Slc27a4","Ubr4","Phgdh","Nes","Rpf1","Eftud2","Yars2","Gigyf1","Rps6ka1","Supt16")
+
+#28 hscr genes and TFs of interest
+analysis_genes<-c("Ret","Gfra1","Sox10","Ednrb","Edn3","Zeb2","Phox2b","Tcf4","L1cam","Elp1","Sema3c",
+              "Sema3d","Nrg1","Acss2","Adamts17","Eno3","Prxl2a","Sh3pxd2a","Slc27a4","Ubr4","Phgdh",
+              "Nes","Rpf1","Eftud2","Yars2","Gigyf1","Rps6ka1","Supt16","Stat5b","Stat1","Stat3","Stat6",
+              "Tbx2","Tbx3","Meis2","Meis3","Pknox2","Tgif2","Glis2","Gli1","Maz","Plagl1","Snai1","Snai2",
+              "Plagl2","Vezf1","Zbtb26","Zfx","Zbtb7a","Zbtb7b","Osr2","Tcf12","Tcf3","Bnc2","Patz1","Ebf1","Ebf3",
+              "Hey1","Maf","Mafk","Mafg","Sp2","Sp4","Klf7","Klf9","Egr1","Klf13","Klf3","Klf4","Klf5","Klf10","Klf2","Klf6",
+              "Etv6","Erg","Gabpa","Ehf","Elf1","Elf3","Etv1","Hand2","Tcf21","Zfp335","Etv4","Jdp2","Fos","Fosl2","Atf3","Nfe2l1","Tcf7l1","Rbpj","Hand1","Tal1","Nfat5","Nfatc2")
+
+
+agg <- AggregateExpression(sub_adult,assays = "RNA",features = analysis_genes,group.by = "celltype_timepoint",return.seurat = TRUE,normalization.method = "LogNormalize",scale.factor = 10000)
+agg2 <- AggregateExpression(sub_adult,assays = "RNA",features = hscr_genes,group.by = "celltype_timepoint",return.seurat = TRUE,normalization.method = "LogNormalize",scale.factor = 10000)
 
 expression_matrix <- LayerData(agg,assay = "RNA",layer = "data")
 expression_matrix <- as.matrix(expression_matrix)
 expression_matrix_scaled <- t(scale(t(expression_matrix)))
-
 # Remove genes with zero variance
 expression_matrix_scaled <- expression_matrix_scaled[complete.cases(expression_matrix_scaled),]
-hscr_genes<-c("Ret","Gfra1","Sox10","Ednrb","Edn3","Zeb2","Phox2b","Tcf4","L1cam","Elp1","Sema3c","Sema3d","Nrg1","Acss2","Adamts17","Eno3","Prxl2a","Sh3pxd2a","Slc27a4","Ubr4","Phgdh","Nes","Rpf1","Eftud2","Yars2","Gigyf1","Rps6ka1","Supt16")
 
-expression_matrix2 <- as.matrix(expression_matrix)
-expression_matrix_scaled2 <- t(scale(t(expression_matrix2)))
-x<-as.matrix(expression_matrix_scaled2[hscr_genes,])
+expression_matrix2 <- LayerData(agg2,assay = "RNA",layer = "data")
+expression_matrix2 <- as.matrix(expression_matrix2)
+x <- t(scale(t(expression_matrix2)))
+
 
 ############################################################
 # 1. SILHOUETTE ANALYSIS
@@ -131,28 +144,20 @@ library(ggplot2)
 # from the 4-cluster solution.
 ############################################################
 
-analysis_genes<-c("Ret","Gfra1","Sox10","Ednrb","Edn3","Zeb2","Phox2b","Tcf4","L1cam","Elp1","Sema3c",
-              "Sema3d","Nrg1","Acss2","Adamts17","Eno3","Prxl2a","Sh3pxd2a","Slc27a4","Ubr4","Phgdh",
-              "Nes","Rpf1","Eftud2","Yars2","Gigyf1","Rps6ka1","Supt16","Stat5b","Stat1","Stat3","Stat6",
-              "Tbx2","Tbx3","Meis2","Meis3","Pknox2","Tgif2","Glis2","Gli1","Maz","Plagl1","Snai1","Snai2",
-              "Plagl2","Vezf1","Zbtb26","Zfx","Zbtb7a","Zbtb7b","Osr2","Tcf12","Tcf3","Bnc2","Patz1","Ebf1","Ebf3",
-              "Hey1","Maf","Mafk","Mafg","Sp2","Sp4","Klf7","Klf9","Egr1","Klf13","Klf3","Klf4","Klf5","Klf10","Klf2","Klf6",
-              "Etv6","Erg","Gabpa","Ehf","Elf1","Elf3","Etv1","Hand2","Tcf21","Zfp335","Etv4","Jdp2","Fos","Fosl2","Atf3","Nfe2l1","Tcf7l1","Rbpj","Hand1","Tal1","Nfat5","Nfatc2")
-
 candidate_TFs<-setdiff(analysis_genes,hscr_genes)
 
 # Z-score each gene across cell × stage states
 ############################################################
 
-z_expr <- t(apply(expression_matrix_scaled,1,
+z_expr <- t(apply(expression_matrix,1,
     function(x) {
       if (sd(x, na.rm = TRUE) == 0) {
         rep(NA, length(x))
       } else {
         as.numeric(scale(x))}}))
 
-rownames(z_expr) <- rownames(expression_matrix_scaled)
-colnames(z_expr) <- colnames(expression_matrix_scaled)
+rownames(z_expr) <- rownames(expression_matrix)
+colnames(z_expr) <- colnames(expression_matrix)
 
 ############################################################
 # HSCR program centroids
@@ -210,6 +215,33 @@ tf_program_cor <- map_dfr(
 # Determine best positive HSCR-program match
 ############################################################
 
+tf_program_cor <- map_dfr(
+  candidate_TFs_filtered,
+  function(tf) {
+
+    tf_profile <- z_expr[tf, ]
+
+    correlations <- apply(
+      cluster_centroids,
+      2,
+      function(centroid) {
+        cor(
+          tf_profile,
+          centroid,
+          method = "pearson",
+          use = "pairwise.complete.obs"
+        )})
+
+    tibble(
+      TF = tf,
+      C1 = correlations["C1"],
+      C2 = correlations["C2"],
+      C3 = correlations["C3"],
+      C4 = correlations["C4"]
+
+tf_program_cor
+
+###keep below until veresion above is checked####
 tf_program_cor <- tf_program_cor %>%
   rowwise() %>%
   mutate(best_r = max(c_across(C1:C4), na.rm = TRUE),best_program = names(
@@ -220,15 +252,54 @@ tf_program_cor <- tf_program_cor %>%
           C4 = C4)))) %>% ungroup() %>% arrange(desc(best_r)) %>%
   mutate(best_program = sub(".*\\.", "", best_program))
 
-tf_program_cor
-
 ############################################################
-# Extract RNA counts
+# Extract RNA counts and filter low expressing TFs optional
 ############################################################
 
 counts <- GetAssayData(sub_adult, assay = "SCT", layer = "counts")
 
 meta <- sub_adult@meta.data
+
+#optional
+tf_present <- intersect(
+  candidate_TFs,
+  rownames(counts))
+
+tf_pct <- map_dfr(
+  valid_groups,
+  function(group) {
+
+    cells <- rownames(meta)[
+      meta$celltype_timepoint == group]
+
+    pct <- Matrix::rowMeans(
+      counts[
+        tf_present,
+        cells,
+        drop = FALSE
+      ] > 0) * 100
+    tibble(
+      TF = names(pct),
+      cell_stage = group,
+      pct_expressing = as.numeric(pct))})
+
+tf_detection <- tf_pct %>%
+  group_by(TF) %>%
+  summarise(
+    max_pct_expressing = max(
+      pct_expressing,
+      na.rm = TRUE
+    ),
+    .groups = "drop")
+
+expressed_TFs <- tf_detection %>%
+  filter(max_pct_expressing >= 5) %>%
+  pull(TF)
+
+candidate_TFs_filtered <- intersect(
+  expressed_TFs,
+  rownames(z_expr))
+
 
 ############################################################
 # Calculate % expressing by cell × stage
