@@ -193,7 +193,7 @@ expressed_TFs <- tf_detection %>%
   filter(max_pct_expressing >= 5) %>%
   pull(TF)
 
-candidate_TFs_filtered <- intersect(expressed_TFs,rownames(z_expr))
+candidate_TFs_filtered <- intersect(expressed_TFs,rownames(expression_matrix_scaled))
 
 ############################################################
 # HSCR program centroids
