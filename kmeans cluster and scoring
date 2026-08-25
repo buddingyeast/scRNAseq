@@ -123,7 +123,7 @@ hscr_clusters <- hscr_clusters[order(hscr_clusters$cluster, hscr_clusters$gene),
 
 ###check sil_width for large positive widths suggesting unique cluster###
 sil4 <- silhouette(km_hscr4$cluster,dist(x))
-sil4_df <- data.frame(gene = rownames(x_hscr)[as.numeric(rownames(sil4))],cluster = sil4[, "cluster"],silhouette_width = sil4[, "sil_width"])
+sil4_df <- data.frame(gene = rownames(x)[as.numeric(rownames(sil4))],cluster = sil4[, "cluster"],silhouette_width = sil4[, "sil_width"])
 sil4_df <- sil4_df[order(sil4_df$cluster, -sil4_df$silhouette_width),]
 
 
