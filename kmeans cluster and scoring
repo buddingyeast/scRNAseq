@@ -352,6 +352,7 @@ TF_candidates_all<-TF_candidates_all %>% mutate(strongest_abs_program = sub(".*\
 #TFscores#
 library(pheatmap)
 
+##set C4 to whatever number of clusters you made
 cor_matrix <- TF_candidates %>%
   select(TF, C1:C4) %>%
   column_to_rownames("TF") %>%
