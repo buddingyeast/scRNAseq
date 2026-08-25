@@ -32,7 +32,7 @@ expression_matrix <- LayerData(agg,assay = "RNA",layer = "data")
 expression_matrix <- as.matrix(expression_matrix)
 expression_matrix_scaled <- t(scale(t(expression_matrix)))
 # Remove genes with zero variance
-expression_matrix_scaled <- expression_matrix_scaled[complete.cases(expression_matrix_scaled),]
+z_expr <- expression_matrix_scaled[complete.cases(expression_matrix_scaled),]
 
 expression_matrix2 <- LayerData(agg2,assay = "RNA",layer = "data")
 expression_matrix2 <- as.matrix(expression_matrix2)
@@ -193,7 +193,7 @@ expressed_TFs <- tf_detection %>%
   filter(max_pct_expressing >= 5) %>%
   pull(TF)
 
-candidate_TFs_filtered <- intersect(expressed_TFs,rownames(expression_matrix_scaled))
+candidate_TFs_filtered <- intersect(expressed_TFs,rownames(z_expr))
 
 ############################################################
 # HSCR program centroids
@@ -208,7 +208,7 @@ cluster_centroids <- sapply(
     # Keep genes actually present in expression matrix
     genes_in_cluster <- intersect(
       genes_in_cluster,
-      rownames(z_expr))
+      rownames(x))
 
     message("Cluster ", cl,": ", length(genes_in_cluster)," genes used")
 
