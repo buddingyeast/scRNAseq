@@ -209,7 +209,7 @@ cluster_centroids <- sapply(
 
     message("Cluster ", cl,": ", length(genes_in_cluster)," genes used")
 
-    colMeans(z_expr[genes_in_cluster, , drop = FALSE],na.rm = TRUE)})
+    colMeans(x[genes_in_cluster, , drop = FALSE],na.rm = TRUE)})
 
 colnames(cluster_centroids) <- paste0("C", cluster_ids)
 
