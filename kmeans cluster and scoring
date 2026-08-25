@@ -772,16 +772,19 @@ TF_candidates <- TF_candidates %>%
 # Inspect distributions before treating them as final.
 ############################################################
 
-TF_candidates <- TF_candidates %>%
+TF_candidates %>%
+  filter(empirical_padj < 0.05, best_r >= 0.40) %>%
   mutate(
-    match_class = case_when(
-      empirical_padj >= 0.05 | best_r < 0.40 ~ "No program match",
-      delta_r < 0.10 ~ "Shared/multi-program",
-      TRUE ~ "Program-specific"),
-    program_assignment = case_when(
-      match_class == "Program-specific" ~ best_program,
-      match_class == "Shared/multi-program" ~ "Shared",
-      TRUE ~ "Unassigned"))
+    specificity = ifelse(
+      delta_r >= 0.10,
+      "Program-specific",
+      "Multi-program")) %>%
+  count(best_program, specificity) %>%
+  tidyr::pivot_wider(
+    names_from = specificity,
+    values_from = n,
+    values_fill = 0) %>%
+  arrange(best_program)
 
 ############################################################
 # Inspect filtering statistics before finalizing thresholds
