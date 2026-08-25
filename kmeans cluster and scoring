@@ -223,13 +223,10 @@ colnames(cluster_centroids) <- paste0("C", cluster_ids)
 tf_program_cor <- map_dfr(
   candidate_TFs_filtered,
   function(tf) {
-    
     if (!tf %in% rownames(z_expr)) {
-      return(NULL)
-    }
-    
+      return(NULL)}
     tf_profile <- z_expr[tf, ]
-    
+
     correlations <- apply(
       cluster_centroids,
       2,
@@ -239,34 +236,25 @@ tf_program_cor <- map_dfr(
           centroid,
           method = "pearson",
           use = "pairwise.complete.obs"
-        )
-      }
-    ) # <-- Added missing closing parenthesis here
-    
+        )})
+
     tibble(
       TF = tf,
-      C1 = correlations["C1"],
-      C2 = correlations["C2"],
-      C3 = correlations["C3"],
-      C4 = correlations["C4"])})
-
+      !!!as.list(correlations))})
 ############################################################
 # Determine best positive HSCR-program match
 ############################################################
 
+program_cols <- colnames(cluster_centroids)
 tf_program_cor <- tf_program_cor %>%
   rowwise() %>%
   mutate(
     best_r = max(
-      c_across(C1:C4),
+      c_across(all_of(program_cols)),
       na.rm = TRUE),
-    best_program = names(
+    best_program = program_cols[
       which.max(
-        c(
-          C1 = C1,
-          C2 = C2,
-          C3 = C3,
-          C4 = C4)))) %>%
+        c_across(all_of(program_cols)))]) %>%
   ungroup() %>%
   arrange(desc(best_r)) %>%
   mutate(
@@ -352,18 +340,13 @@ TF_candidates <- tf_program_cor %>% left_join(program_expression_stats,by = c("T
 
 TF_candidates_all <- TF_candidates %>%
   rowwise() %>%
-  mutate(  
+  mutate(
     strongest_abs_r = max(
-      abs(c_across(C1:C4)),
+      abs(c_across(all_of(program_cols))),
       na.rm = TRUE),
-    
-    strongest_abs_program = names(
-      which.max(abs(c(
-            C1 = C1,
-            C2 = C2,
-            C3 = C3,
-            C4 = C4
-          ))))) %>%ungroup()
+    strongest_abs_program = program_cols[
+      which.max(
+        abs(c_across(all_of(program_cols))))]) %>%ungroup()
 
 TF_candidates_all<-TF_candidates_all %>% mutate(strongest_abs_program = sub(".*\\.", "", strongest_abs_program))
 
