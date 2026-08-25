@@ -146,9 +146,6 @@ library(purrr)
 library(tibble)
 library(ggplot2)
 
-# Z-score each gene across cell × stage states
-############################################################
-z_expr <- x
 
 ############################################################
 # Extract RNA counts and filter low expressing TFs optional
