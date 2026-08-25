@@ -815,6 +815,44 @@ TF_candidates %>%
   arrange(match_class, best_program, desc(best_r))
 
 ############################################################
+# Summarize TF filtering results
+############################################################
+
+TF_filter_summary <- tibble(
+  filtering_step = c(
+    "Starting candidate TFs",
+    "Pass permutation FDR < 0.05",
+    "Pass FDR + best r >= 0.40",
+    "Program-specific (delta r >= 0.10)",
+    "Multi-program (delta r < 0.10)"),
+  
+  n_TFs = c(
+    nrow(TF_candidates),
+    
+    sum(
+      TF_candidates$empirical_padj < 0.05,
+      na.rm = TRUE),
+    
+    sum(
+      TF_candidates$empirical_padj < 0.05 &
+      TF_candidates$best_r >= 0.40,
+      na.rm = TRUE),
+    
+    sum(
+      TF_candidates$empirical_padj < 0.05 &
+      TF_candidates$best_r >= 0.40 &
+      TF_candidates$delta_r >= 0.10,
+      na.rm = TRUE),
+    
+    sum(
+      TF_candidates$empirical_padj < 0.05 &
+      TF_candidates$best_r >= 0.40 &
+      TF_candidates$delta_r < 0.10,
+      na.rm = TRUE)))
+
+TF_filter_summary
+
+############################################################
 # TF heatmap:
 # remove TFs classified as "No program match"
 ############################################################
