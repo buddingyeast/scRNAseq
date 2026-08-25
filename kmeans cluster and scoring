@@ -117,14 +117,22 @@ p_wss <- fviz_nbclust(x,FUNcluster = kmeans,method = "wss",k.max = kmax,nstart =
 p_wss
 
 ####capture group information for kmeans####
-km_hscr4 <- kmeans(x,centers = 4,nstart = 1000)
-hscr_clusters <- data.frame(gene = rownames(x),cluster = km_hscr4$cluster)
-hscr_clusters <- hscr_clusters[order(hscr_clusters$cluster, hscr_clusters$gene),]
+km_hscr4 <- kmeans(x, centers = 4, nstart = 1000)
+hscr_clusters <- data.frame(
+  gene = rownames(x),
+  cluster = km_hscr4$cluster)
+hscr_clusters <- hscr_clusters[order(hscr_clusters$cluster, hscr_clusters$gene), ]
 
-###check sil_width for large positive widths suggesting unique cluster###
-sil4 <- silhouette(km_hscr4$cluster,dist(x))
-sil4_df <- data.frame(gene = rownames(x)[as.numeric(rownames(sil4))],cluster = sil4[, "cluster"],silhouette_width = sil4[, "sil_width"])
-sil4_df <- sil4_df[order(sil4_df$cluster, -sil4_df$silhouette_width),]
+### check sil_width for large positive widths suggesting unique cluster ###
+sil4 <- silhouette(km_hscr4$cluster, dist(x))
+
+# Match gene names directly using rownames(x)
+sil4_df <- data.frame(
+  gene = rownames(x),
+  cluster = sil4[, "cluster"],
+  silhouette_width = sil4[, "sil_width"])
+
+sil4_df <- sil4_df[order(sil4_df$cluster, -sil4_df$silhouette_width), ]
 
 
 ############################################################
