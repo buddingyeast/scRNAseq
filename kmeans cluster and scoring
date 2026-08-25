@@ -148,7 +148,7 @@ library(ggplot2)
 
 # Z-score each gene across cell × stage states
 ############################################################
-z_expr <- t(scale(t(expression_matrix)))
+z_expr <- x
 
 ############################################################
 # Extract RNA counts and filter low expressing TFs optional
