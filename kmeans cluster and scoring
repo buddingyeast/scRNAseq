@@ -259,7 +259,69 @@ tf_program_cor <- tf_program_cor %>%
 
 tf_program_cor
 
+############################################################
+# TF → HSCR-program correlations
+############################################################
 
+tf_program_cor <- map_dfr(
+  candidate_TFs_filtered,
+  function(tf) {
+
+    tf_profile <- z_expr[tf, ]
+
+    correlations <- apply(
+      cluster_centroids,
+      2,
+      function(centroid) {
+        cor(
+          tf_profile,
+          centroid,
+          method = "pearson",
+          use = "pairwise.complete.obs"
+        )
+      }
+    )
+
+    tibble(
+      TF = tf,
+      !!!as.list(correlations)
+    )
+  }
+)
+
+############################################################
+# Best program + second-best program + specificity
+############################################################
+
+program_cols <- colnames(cluster_centroids)
+
+tf_program_cor <- tf_program_cor %>%
+  rowwise() %>%
+  mutate(
+
+    # Sorted correlations from highest to lowest
+    best_r = max(
+      c_across(all_of(program_cols)),
+      na.rm = TRUE
+    ),
+
+    best_program = program_cols[
+      which.max(
+        c_across(all_of(program_cols))
+      )
+    ],
+
+    second_best_r = sort(
+      c_across(all_of(program_cols)),
+      decreasing = TRUE
+    )[2],
+
+    # Difference between winner and runner-up
+    delta_r = best_r - second_best_r
+
+  ) %>%
+  ungroup() %>%
+  arrange(desc(best_r))
 ############################################################
 # Calculate % expressing by cell × stage
 ############################################################
