@@ -44,11 +44,12 @@ x <- t(scale(t(expression_matrix2)))
 ############################################################
 
 set.seed(123)
+kmax=15
 
 p_sil <- fviz_nbclust(x,
   FUNcluster = kmeans,
   method = "silhouette",
-  k.max = k_max,
+  k.max = kmax,
   nstart = 100) +
   labs(title = "Optimal k: Silhouette Method",
     x = "Number of clusters (k)",
